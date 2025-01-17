@@ -1,4 +1,4 @@
 # 🌟nju_cs_materials
-nju计算机系课程资料/复习资料 Review/Course Materials for reference
+南京大学 计算机学院 课程与实验资料 Review/Course Materials for reference
 > 本仓库中的所有代码均由南京大学计算机系的学生本人独立完成，版权归本人所有。
 > 如果您引用或使用本仓库中的代码，请遵守学术规范，注明原作者和出处，并且在任何公开发布的作品中明确声明使用了本代码。如有疑问或需要授权，请联系作者。
