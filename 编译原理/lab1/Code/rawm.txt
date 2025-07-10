@@ -1,0 +1,49 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include "syntax.tab.h"
+
+typedef struct Node {
+    char* name;
+    int ID;
+    struct Node* par;
+    struct Node* chd;
+    struct Node* bro;
+    char* info;
+} Node;
+
+extern int yyparse();
+extern int yyrestart(FILE *f);
+
+extern int isError;
+extern int Aerrors[401];
+extern int Berrors[401];
+
+extern Node* root;
+extern void printTree(Node* node, int depth);
+extern void findError(Node* node);
+extern void printAerror();
+extern void printBerror();
+
+/* Main */
+int main(int argc, char **argv) {
+    if (argc > 1) {
+        FILE *f = fopen(argv[1], "r");
+        if (!f) {
+            perror(argv[1]);
+            return 1;
+        }
+        yyrestart(f);
+    }
+    int flag = 1;
+    while(yyparse() != 0) flag = 0;
+    if (isError) {
+        findError(root);
+        printAerror();
+        printBerror();
+    }
+    else {
+        printTree(root, 0);
+    }
+    
+    return 0;
+}

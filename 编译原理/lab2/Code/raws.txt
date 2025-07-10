@@ -1,0 +1,233 @@
+%locations
+
+%{
+#include <stdio.h>
+#include <stdlib.h>
+#include "lex.yy.c"
+
+#define YYSTYPE Node*
+
+int count = 0;
+int isError = 0;
+int Aerrors[401];
+int Berrors[401];
+Node* root = NULL;
+
+void findError(Node* node);
+void printAerror();
+void printBerror();
+void yyerror(const char *s);
+void addChild(Node* par, Node* chd);
+void printTree(Node* node, int depth);
+char* lineinfo(int n);
+char* errorinfo(int n);
+Node* makeNode(char* name, char* info);
+Node* makeNode_noInfo(char* name);
+%}
+
+/* Definition Part */
+    /* Tokens */
+%token INT
+%token FLOAT
+%token TYPE STRUCT RETURN IF ELSE WHILE ID 
+%token SEMI COMMA ASSIGNOP RELOP AND OR PLUS MINUS STAR DIV DOT NOT LP RP LB RB LC RC
+
+    /* Associativity */
+%right ASSIGNOP
+%left OR
+%left AND 
+%left RELOP
+%left PLUS MINUS
+%left STAR DIV
+%right NOT
+%left LP RP LB RB DOT
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
+
+/* Rules Part */
+%%
+    /* High-level Definitions */
+Program: ExtDefList  { $$ = makeNode("Program", lineinfo(@$.first_line)); addChild($$, $1); root = $$; }
+       ;
+ExtDefList: ExtDef ExtDefList { $$ = makeNode("ExtDefList", lineinfo(@$.first_line)); addChild($$, $1); addChild($$, $2); }
+          |  { $$ = NULL; } 
+          ;
+ExtDef: Specifier ExtDecList SEMI  { $$ = makeNode("ExtDef", lineinfo(@$.first_line)); $3 = makeNode_noInfo("SEMI"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+      | Specifier SEMI  { $$ = makeNode("ExtDef", lineinfo(@$.first_line));  $2 = makeNode_noInfo("SEMI"); addChild($$, $1); addChild($$, $2); }
+      | Specifier FunDec CompSt  { $$ = makeNode("ExtDef", lineinfo(@$.first_line)); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+      | error SEMI  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("ExtDef"); }
+      ;
+ExtDecList: VarDec  { $$ = makeNode("ExtDecList", lineinfo(@$.first_line)); addChild($$, $1); }
+          | VarDec COMMA ExtDecList  { $$ = makeNode("ExtDecList", lineinfo(@$.first_line));  $2 = makeNode_noInfo("COMMA");  addChild($$, $1); addChild($$, $2);  addChild($$, $3); }
+          ;
+    /* Specifiers */
+Specifier: TYPE  { $$ = makeNode("Specifier", lineinfo(@$.first_line)); addChild($$, $1); }
+         | StructSpecifier  { $$ = makeNode("Specifier", lineinfo(@$.first_line)); addChild($$, $1);}
+         ;
+StructSpecifier: STRUCT OptTag LC DefList RC  { $$ = makeNode("StructSpecifier", lineinfo(@$.first_line)); $1 = makeNode_noInfo("STRUCT"); $3 = makeNode_noInfo("LC"); $5 = makeNode_noInfo("RC"); addChild($$, $1); addChild($$, $2); addChild($$, $3); addChild($$, $4); addChild($$, $5); }
+               | STRUCT Tag  { $$ = makeNode("StructSpecifier", lineinfo(@$.first_line));  $1 = makeNode_noInfo("STRUCT"); addChild($$, $1); addChild($$, $2); }
+               ;
+OptTag: ID  { $$ = makeNode("OptTag", lineinfo(@$.first_line));  addChild($$, $1); }
+      |  { $$ = NULL; }
+      ;
+Tag: ID  { $$ = makeNode("Tag", lineinfo(@$.first_line)); addChild($$, $1); }
+   ;
+    /* Declarators */
+VarDec: ID  { $$ = makeNode("VarDec", lineinfo(@$.first_line));  addChild($$, $1); }
+      | VarDec LB INT RB  { $$ = makeNode("VarDec", lineinfo(@$.first_line)); $2 = makeNode_noInfo("LB");  $4 = makeNode_noInfo("RB");  addChild($$, $1); addChild($$, $2); addChild($$, $3); addChild($$, $4);}
+      ;
+FunDec: ID LP VarList RP  { $$ = makeNode("FunDec", lineinfo(@$.first_line));  $2 = makeNode_noInfo("LP"); $4 = makeNode_noInfo("RP"); addChild($$, $1); addChild($$, $2); addChild($$, $3); addChild($$, $4);}
+       | ID LP RP  {$$ = makeNode("FunDec", lineinfo(@$.first_line));  $2 = makeNode_noInfo("LP"); $3 = makeNode_noInfo("RP"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+       | ID LP error RP  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("FunDec"); }
+       | error RP  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("FunDec"); }
+       ;
+VarList: ParamDec COMMA VarList  { $$ = makeNode("VarList", lineinfo(@$.first_line));  $2 = makeNode_noInfo("COMMA"); addChild($$, $1); addChild($$, $2);  addChild($$, $3);}
+         | ParamDec  { $$ = makeNode("VarList", lineinfo(@$.first_line)); addChild($$, $1); }
+         ;
+ParamDec: Specifier VarDec  { $$ = makeNode("ParamDec", lineinfo(@$.first_line)); addChild($$, $1); addChild($$, $2); }
+        | Specifier error  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("ParamDec"); }
+        ;
+    /* Statements */
+CompSt: LC DefList StmtList RC  { $$ = makeNode("CompSt", lineinfo(@$.first_line));  $1 = makeNode_noInfo("LC"); $4 = makeNode_noInfo("RC"); addChild($$, $1); addChild($$, $2); addChild($$, $3); addChild($$, $4); }
+      | error RC  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("CompSt"); $2 = makeNode_noInfo("RC"); addChild($$, $2); }
+      ;
+StmtList: Stmt StmtList  { $$ = makeNode("StmtList", lineinfo(@$.first_line)); addChild($$, $1); addChild($$, $2);  }
+         |  { $$ = NULL; }
+         ;
+Stmt: Exp SEMI  { $$ = makeNode("Stmt", lineinfo(@$.first_line)); $2 = makeNode_noInfo("SEMI"); addChild($$, $1); addChild($$, $2); }
+    | CompSt  { $$ = makeNode("Stmt", lineinfo(@$.first_line)); addChild($$, $1); }
+    | RETURN Exp SEMI  { $$ = makeNode("Stmt", lineinfo(@$.first_line)); $1 = makeNode_noInfo("RETURN"); $3 = makeNode_noInfo("SEMI"); addChild($$, $1); addChild($$, $2); addChild($$, $3);}
+    | IF LP Exp RP Stmt %prec LOWER_THAN_ELSE  { $$ = makeNode("Stmt", lineinfo(@$.first_line)); $1 = makeNode_noInfo("IF"); $2 = makeNode_noInfo("LP");  $4 = makeNode_noInfo("RP"); addChild($$, $1); addChild($$, $2); addChild($$, $3); addChild($$, $4); addChild($$, $5);}
+    | IF LP Exp RP Stmt ELSE Stmt  { $$ = makeNode("Stmt", lineinfo(@$.first_line)); $1 = makeNode_noInfo("IF"); $2 = makeNode_noInfo("LP");  $4 = makeNode_noInfo("RP"); $6 = makeNode_noInfo("ELSE"); addChild($$, $1); addChild($$, $2); addChild($$, $3); addChild($$, $4); addChild($$, $5); addChild($$, $6); addChild($$, $7); }
+    | WHILE LP Exp RP Stmt  { $$ = makeNode("Stmt", lineinfo(@$.first_line));  $1 = makeNode_noInfo("WHILE"); $2 = makeNode_noInfo("LP");  $4 = makeNode_noInfo("RP"); addChild($$, $1); addChild($$, $2); addChild($$, $3); addChild($$, $4); addChild($$, $5); }
+    | Exp error  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("Stmt"); }
+    | error SEMI  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("Stmt");  $2 = makeNode_noInfo("SEMI"); addChild($$, $2); }
+    ;
+    /* Local Definitions */
+DefList: Def DefList  {$$ = makeNode("DefList", lineinfo(@$.first_line)); addChild($$, $1); addChild($$, $2);  }
+        |  { $$ = NULL; }
+        ;
+Def: Specifier DecList SEMI  { $$ = makeNode("Def", lineinfo(@$.first_line)); $3 = makeNode_noInfo("SEMI"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Specifier error SEMI  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("Def"); }
+    | error SEMI  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("Def"); }
+    ;
+DecList: Dec  { $$ = makeNode("DecList", lineinfo(@$.first_line)); addChild($$, $1); }
+       | Dec COMMA DecList  { $$ = makeNode("DecList", lineinfo(@$.first_line)); $2 = makeNode_noInfo("COMMA"); addChild($$, $1); addChild($$, $2);addChild($$, $3); }
+       ;
+Dec: VarDec  { $$ = makeNode("Dec", lineinfo(@$.first_line)); addChild($$, $1); }
+    | VarDec ASSIGNOP Exp  { $$ = makeNode("Dec", lineinfo(@$.first_line)); $2 = makeNode_noInfo("ASSIGNOP"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    ;
+    /* Expressions */
+Exp: Exp ASSIGNOP Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line)); $2 = makeNode_noInfo("ASSIGNOP"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Exp AND Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line)); $2 = makeNode_noInfo("AND"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Exp OR Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line));  $2 = makeNode_noInfo("OR"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Exp RELOP Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line)); $2 = makeNode_noInfo("RELOP"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Exp PLUS Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line)); $2 = makeNode_noInfo("PLUS"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Exp MINUS Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line));  $2 = makeNode_noInfo("MINUS"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Exp STAR Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line));  $2 = makeNode_noInfo("STAR"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Exp DIV Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line)); $2 = makeNode_noInfo("DIV"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | LP Exp RP  { $$ = makeNode("Exp", lineinfo(@$.first_line));  $1 = makeNode_noInfo("LP"); $3 = makeNode_noInfo("RP");addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | MINUS Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line));  $1 = makeNode_noInfo("MINUS");addChild($$, $1); addChild($$, $2); }
+    | NOT Exp  { $$ = makeNode("Exp", lineinfo(@$.first_line)); $1 = makeNode_noInfo("NOT"); addChild($$, $1); addChild($$, $2); }
+    | ID LP Args RP  { $$ = makeNode("Exp", lineinfo(@$.first_line));  $2 = makeNode_noInfo("LP"); $4 = makeNode_noInfo("RP"); addChild($$, $1); addChild($$, $2); addChild($$, $3); addChild($$, $4); }
+    | ID LP RP  { $$ = makeNode("Exp", lineinfo(@$.first_line)); $2 = makeNode_noInfo("LP"); $3 = makeNode_noInfo("RP"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Exp LB Exp RB  { $$ = makeNode("Exp", lineinfo(@$.first_line)); $2 = makeNode_noInfo("LB"); $4 = makeNode_noInfo("RB"); addChild($$, $1); addChild($$, $2); addChild($$, $3); addChild($$, $4); }
+    | Exp DOT ID  { $$ = makeNode("Exp", lineinfo(@$.first_line)); $2 = makeNode_noInfo("DOT");  addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | ID  { $$ = makeNode("Exp", lineinfo(@$.first_line)); addChild($$, $1); }
+    | INT  { $$ = makeNode("Exp", lineinfo(@$.first_line));  addChild($$, $1); }
+    | FLOAT  { $$ = makeNode("Exp", lineinfo(@$.first_line));  addChild($$, $1); }
+    | error  { $$ = makeNode("error", errorinfo(@$.first_line)); yyerror("Exp"); }
+    ;
+Args: Exp COMMA Args  { $$ = makeNode("Args", lineinfo(@$.first_line)); $2 = makeNode_noInfo("COMMA"); addChild($$, $1); addChild($$, $2); addChild($$, $3); }
+    | Exp  { $$ = makeNode("Args", lineinfo(@$.first_line)); addChild($$, $1); }
+     ;
+%%
+
+void yyerror(const char* msg) {
+    isError = 1;
+}
+
+Node* makeNode(char* name, char* info) {
+    Node* node = (Node*)malloc(sizeof(Node));
+    node->name = name;
+    node->ID = count++;
+    node->par = NULL;
+    node->chd = NULL;
+    node->bro = NULL;
+    node->info = info;
+    return node;
+}
+
+Node* makeNode_noInfo(char* name){
+    return makeNode(name, "");
+}
+
+char* lineinfo(int n) {
+    char* str = (char*)malloc(10);
+    sprintf(str, " (%d)", n);
+    return str;
+}
+
+char* errorinfo(int n){
+    char* str = (char*)malloc(10);
+    sprintf(str, "%d", n);
+    return str;
+}
+
+void addChild(Node* par, Node* chd) {
+    if (par == NULL || chd == NULL) {
+        return;
+    }
+    if (par->chd == NULL) {
+        par->chd = chd;
+    } else {
+        Node* bro = par->chd;
+        while (bro->bro != NULL) {
+            bro = bro->bro;
+        }
+        bro->bro = chd;
+    }
+    chd->par = par;
+}
+
+void printTree(Node* node, int depth) {
+    for (int i = 0; i < depth; i++) {
+        printf("  ");
+    }
+    printf("%s%s\n", node->name, node->info);
+    Node* chd = node->chd;
+    while (chd != NULL) {
+        printTree(chd, depth + 1);
+        chd = chd->bro;
+    }
+}
+
+void findError(Node* node) {
+    if (!node) return;
+    if (strcmp(node->name, "error") == 0) {
+        int l = atoi(node->info);
+        if(!Aerrors[l]) Berrors[l] = 1;
+        return;
+    }
+    Node* chd = node->chd;
+    while (chd != NULL) {
+        findError(chd);
+        chd = chd->bro;
+    }
+}
+
+void printAerror() {
+    for (int i = 0; i < 400; i++) {
+        if (Aerrors[i] == 1) {
+            printf("Error type A at Line %d: \n", i);
+        }
+    }
+}
+
+void printBerror() {
+    for (int i = 0; i < 400; i++) {
+        if (Berrors[i] == 1) {
+            printf("Error type B at Line %d: \n", i);
+        }
+    }
+}

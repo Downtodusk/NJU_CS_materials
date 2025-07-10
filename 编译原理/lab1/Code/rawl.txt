@@ -1,0 +1,130 @@
+%option yylineno
+
+%{
+typedef struct Node {
+    char* name;
+    int ID;
+    struct Node* par;
+    struct Node* chd;
+    struct Node* bro;
+    char* info;
+} Node;
+
+#define YYSTYPE Node*
+#include <stdio.h>
+#include "syntax.tab.h"
+
+extern int yylineno;  
+extern int isError;
+extern int Aerrors[401];
+extern int Berrors[401];
+
+extern Node* makeNode(char* name, char* info);
+
+#define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno; 
+
+void solveA();
+void solveB();
+char* idInfo(char* text); 
+char* intInfo(char* text); 
+char* floatInfo(char* text); 
+%}
+
+/* Definition Part */
+digit [0-9]
+
+/* Rules Part */
+%%
+    /* Key Words*/
+"int"  { yylval = makeNode("TYPE", ": int"); return TYPE; }  
+"float"  { yylval = makeNode("TYPE", ": float"); return TYPE; } 
+"if"  { return IF; }  
+"else"  { return ELSE; }
+"while"  { return WHILE; } 
+"struct"  { return STRUCT; } 
+"return"  { return RETURN; } 
+    /* Symbol */
+";"  { return SEMI; } 
+","  { return COMMA; } 
+"="  { return ASSIGNOP; } 
+">="  { return RELOP; }
+"<="  { return RELOP; } 
+">"  { return RELOP; } 
+"<"  { return RELOP; }
+"=="  { return RELOP; }
+"!="  { return RELOP; } 
+"+"  { return PLUS; }
+"-"  { return MINUS; }
+"*"   { return STAR; }
+"/"  { return DIV; }
+"&&"  { return AND; } 
+"||"  { return OR; } 
+"."  { return DOT; } 
+"!"  { return NOT; } 
+"("  { return LP; } 
+")"  { return RP; }  
+"["  { return LB; }  
+"]"  { return RB; } 
+"{"  { return LC; }  
+"}"  { return RC; }
+    /* Numeric Value */
+0  { yylval = makeNode("INT", intInfo(yytext)); return INT; }
+[1-9]{digit}*  { yylval = makeNode("INT", intInfo(yytext));  return INT; }
+{digit}+"."{digit}+  { yylval = makeNode("FLOAT", floatInfo(yytext)); return FLOAT; } 
+    /* ID */
+[_a-zA-Z][_a-zA-Z0-9]*  { yylval = makeNode("ID", idInfo(yytext)); return ID; }
+    /* Comment */
+"//" { do{solveB();}while(input()!='\n'); }
+"/*" { 
+    solveB();
+    char c = ' ';
+    int state = 0;
+    while(state != 2){
+        c = input();
+        solveB();
+        if(c == '*'){
+            state = 1;
+        }else if(c == '/' && state == 1){
+            state = 2;
+        }else{
+            state = 0;
+        }
+    }    
+}
+    /* Space */
+[ \t\n]+  { /* Do Nothing */ }
+    /* Fail */
+. { solveA();}
+%%
+
+/* User Part */
+void solveA() {
+    isError = 1;
+    Aerrors[yylineno] = 1;
+}
+
+void solveB() {
+    isError = 1;
+    Berrors[yylineno] = 1;
+}
+
+char* idInfo(char* info) {
+    char* new = (char*)malloc(strlen(info) + 3);
+    strcpy(new, ": ");
+    strcat(new, info);
+    return new;
+}
+
+char* intInfo(char* info) {
+    int int_ = atoi(info);
+    char* new = (char*)malloc(20); 
+    sprintf(new, ": %d", int_);
+    return new;
+}
+
+char* floatInfo(char* info){
+    float float_ = atof(info);
+    char* new = (char*)malloc(20); 
+    sprintf(new, ": %.6f", float_);
+    return new;
+}

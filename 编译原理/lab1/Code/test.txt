@@ -1,0 +1,105 @@
+%{
+
+#define ENABLE_DEBUG
+
+int error_count = 0;
+
+void process_token(char *token_type, char *token_text) {
+    #ifdef ENABLE_DEBUG
+    printf("LEX: [Line %d] %s -> %s\n", yylineno, token_type, token_text);
+    #else
+    printf("%s: %s\n", token_type, token_text);  
+    #endif
+}
+%}
+
+%option yylineno
+
+ws          [ \t\r\n]+
+letter      [_a-zA-Z]
+digit       [0-9]
+id          {letter}({letter}|{digit})*
+int         0|([1-9]{digit}*)
+float       {digit}+\.{digit}+
+relop       ==|!=|<=|>=|<|>
+type        int|float
+
+%%
+
+"//" {
+    char next_char;
+    while ((next_char = input()) != '\n' && next_char != 0);
+}
+
+"/*" {
+    int nest_level = 1;
+    int closed = 0;
+    int last_error_line = 0;
+    char cur = input(), next = input();
+    while (next != 0) {  
+        // printf("cur: %c, next: %c, yylineno: %d\n", cur, next, yylineno);
+        if (nest_level > 0 && closed == 1 && last_error_line != yylineno) {
+            printf("Error type B at Line %d: Syntax error\n", yylineno);
+            error_count++;
+            last_error_line = yylineno;
+        }
+        if (cur == '*' && next == '/') {
+            nest_level--;
+            last_error_line = yylineno;
+            closed = 1;
+        }
+        if (cur == '/' && next == '*') nest_level++;
+        if(nest_level == 0) break;
+        cur = next;
+        next = input();
+    }
+    if (next == 0 && nest_level > 0) {
+        printf("Syntax Error B at Line %d: Unclosed comment '/*'\n", yylineno);
+        error_count++;
+    }
+}
+
+{ws}        { process_token("WS", yytext); }
+
+{type}      { process_token("DATATYPE", yytext); }
+struct      { process_token("STRUCT", yytext); }
+return      { process_token("RETURN", yytext); }
+if          { process_token("IF", yytext); }
+else        { process_token("ELSE", yytext); }
+while       { process_token("WHILE", yytext); }
+
+";"         { process_token("SEMI", yytext); }
+","         { process_token("COMMA", yytext); }
+"("         { process_token("LP", yytext); }
+")"         { process_token("RP", yytext); }
+"["         { process_token("LB", yytext); }
+"]"         { process_token("RB", yytext); }
+"{"         { process_token("LC", yytext); }
+"}"         { process_token("RC", yytext); }
+
+"="         { process_token("ASSIGN", yytext); }
+{relop}     { process_token("RELOP", yytext); }
+"+"         { process_token("PLUS", yytext); }
+"-"         { process_token("MINUS", yytext); }
+"*"         { process_token("STAR", yytext); }
+"/"         { process_token("DIV", yytext); }
+"&&"        { process_token("AND", yytext); }
+"||"        { process_token("OR", yytext); }
+"."         { process_token("DOT", yytext); }
+"!"         { process_token("NOT", yytext); }
+
+{id}        { process_token("ID", yytext); }
+{int}   { process_token("INT", yytext); }
+{float}     { process_token("FLOAT", yytext); }
+
+
+. {
+    printf("Syntax Error A at Line %d: Unrecognized token '%s'\n", yylineno, yytext);
+    error_count++;
+}
+
+%%
+
+int yywrap() {
+    return 1;
+}
